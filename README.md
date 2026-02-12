@@ -1,0 +1,138 @@
+[project (1).html](https://github.com/user-attachments/files/25259847/project.1.html)
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Project</title>
+    
+    <style>
+
+    </style>
+</head>
+<body>
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>AR.js Collision - Hiro</title>
+
+  <!-- A-Frame -->
+  <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+
+  <!-- AR.js -->
+  <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js/aframe/build/aframe-ar.js"></script>
+
+  <style>
+    body { margin: 0; overflow: hidden; }
+    #msg {
+      position: absolute;
+      bottom: 20px;
+      width: 100%;
+      text-align: center;
+      color: white;
+      font-family: sans-serif;
+      background: rgba(0,0,0,0.6);
+      padding: 10px;
+    }
+  </style>
+</head>
+
+<body>
+
+<div id="msg">Apunta la cámara al marcador HIRO</div>
+
+<a-scene
+  embedded
+  arjs="sourceType: webcam; debugUIEnabled: false;"
+  vr-mode-ui="enabled: false">
+
+  <!-- Marker Hiro -->
+  <a-marker preset="hiro" id="marker">
+
+    <!-- Cubo -->
+    <a-box id="box"
+      position="-0.5 0.5 0"
+      depth="0.3"
+      height="0.3"
+      width="0.3"
+      color="#4CAF50">
+    </a-box>
+
+    <!-- Esfera -->
+    <a-sphere id="sphere"
+      position="0.5 0.5 0"
+      radius="0.2"
+      color="#E91E63">
+    </a-sphere>
+
+    <!-- Cono (oculto al inicio) -->
+    <a-cone id="cone"
+      visible="false"
+      position="0 0.5 0"
+      radius-bottom="0.3"
+      height="0.5"
+      color="#FF9800">
+    </a-cone>
+
+  </a-marker>
+
+  <a-entity camera></a-entity>
+
+</a-scene>
+
+<script>
+  const box = document.querySelector('#box');
+  const sphere = document.querySelector('#sphere');
+  const cone = document.querySelector('#cone');
+  const msg = document.querySelector('#msg');
+
+  const COLLISION_DISTANCE = 0.6;
+
+  function checkCollision() {
+    if (!box.object3D.visible || !sphere.object3D.visible) return;
+
+    const p1 = box.object3D.position;
+    const p2 = sphere.object3D.position;
+
+    const distance = p1.distanceTo(p2);
+
+    if (distance < COLLISION_DISTANCE) {
+      box.setAttribute('visible', false);
+      sphere.setAttribute('visible', false);
+      cone.setAttribute('visible', true);
+      msg.innerText = "Colisión detectada 🔥 Transformado en cono";
+    } else {
+      cone.setAttribute('visible', false);
+      box.setAttribute('visible', true);
+      sphere.setAttribute('visible', true);
+      msg.innerText = "Acerca las figuras para colisionar";
+    }
+  }
+
+  // Animación suave automática para que colisionen
+  let direction = 1;
+
+  setInterval(() => {
+    const x = sphere.getAttribute('position').x;
+    sphere.setAttribute('position', {
+      x: x + 0.02 * direction,
+      y: 0.5,
+      z: 0
+    });
+
+    if (x > 0.6 || x < -0.6) direction *= -1;
+
+    checkCollision();
+  }, 50);
+
+</script>
+
+</body>
+</html>
+
+    <script>
+
+    </script>
+</body>
+</html>
