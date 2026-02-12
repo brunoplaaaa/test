@@ -1,137 +1,203 @@
+<!-- Replace with your HTML Code (Leave empty if not needed) -->
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Project</title>
-    
+    <title>AR Collision Transformer</title>
+    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
     <style>
-
+        body { margin: 0; overflow: hidden; font-family: sans-serif; }
+        #ui {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            text-align: center;
+            pointer-events: none;
+        }
+        .instructions {
+            background: rgba(0,0,0,0.6);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            margin-bottom: 10px;
+        }
+        button {
+            padding: 12px 24px;
+            font-size: 16px;
+            background: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            pointer-events: auto;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>AR.js Collision - Hiro</title>
 
-  <!-- A-Frame -->
-  <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+    <div id="ui">
+        <div class="instructions" id="msg">Find a surface and tap to place objects</div>
+    </div>
 
-  <!-- AR.js -->
-  <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js/aframe/build/aframe-ar.js"></script>
+    <a-scene 
+        webxr="requiredFeatures: hit-test, local-floor; optionalFeatures: dom-overlay; overlayElement: #ui;"
+        raycaster="objects: .collidable"
+        cursor="rayOrigin: mouse">
+        
+        <a-assets>
+            <!-- No external assets needed for basic primitives -->
+        </a-assets>
 
-  <style>
-    body { margin: 0; overflow: hidden; }
-    #msg {
-      position: absolute;
-      bottom: 20px;
-      width: 100%;
-      text-align: center;
-      color: white;
-      font-family: sans-serif;
-      background: rgba(0,0,0,0.6);
-      padding: 10px;
-    }
-  </style>
-</head>
+        <a-camera position="0 1.6 0"></a-camera>
 
-<body>
+        <!-- Hit Test Reticle -->
+        <a-entity id="reticle" visible="false" raycaster="objects: .none">
+            <a-ring color="#00FF00" rotation="-90 0 0" radius-inner="0.04" radius-outer="0.05"></a-ring>
+        </a-entity>
 
-<div id="msg">Apunta la cámara al marcador HIRO</div>
+        <!-- Container for placed objects -->
+        <a-entity id="ar-world"></a-entity>
 
-<a-scene
-  embedded
-  arjs="sourceType: webcam; debugUIEnabled: false;"
-  vr-mode-ui="enabled: false">
+        <!-- The Resulting Cone (Hidden by default) -->
+        <a-cone id="collision-cone" visible="false" radius-bottom="0.15" height="0.3" material="color: #FF9800; opacity: 0.9"></a-cone>
 
-  <!-- Marker Hiro -->
-  <a-marker preset="hiro" id="marker">
-
-    <!-- Cubo -->
-    <a-box id="box"
-      position="-0.5 0.5 0"
-      depth="0.3"
-      height="0.3"
-      width="0.3"
-      color="#4CAF50">
-    </a-box>
-
-    <!-- Esfera -->
-    <a-sphere id="sphere"
-      position="0.5 0.5 0"
-      radius="0.2"
-      color="#E91E63">
-    </a-sphere>
-
-    <!-- Cono (oculto al inicio) -->
-    <a-cone id="cone"
-      visible="false"
-      position="0 0.5 0"
-      radius-bottom="0.3"
-      height="0.5"
-      color="#FF9800">
-    </a-cone>
-
-  </a-marker>
-
-  <a-entity camera></a-entity>
-
-</a-scene>
-
-<script>
-  const box = document.querySelector('#box');
-  const sphere = document.querySelector('#sphere');
-  const cone = document.querySelector('#cone');
-  const msg = document.querySelector('#msg');
-
-  const COLLISION_DISTANCE = 0.6;
-
-  function checkCollision() {
-    if (!box.object3D.visible || !sphere.object3D.visible) return;
-
-    const p1 = box.object3D.position;
-    const p2 = sphere.object3D.position;
-
-    const distance = p1.distanceTo(p2);
-
-    if (distance < COLLISION_DISTANCE) {
-      box.setAttribute('visible', false);
-      sphere.setAttribute('visible', false);
-      cone.setAttribute('visible', true);
-      msg.innerText = "Colisión detectada 🔥 Transformado en cono";
-    } else {
-      cone.setAttribute('visible', false);
-      box.setAttribute('visible', true);
-      sphere.setAttribute('visible', true);
-      msg.innerText = "Acerca las figuras para colisionar";
-    }
-  }
-
-  // Animación suave automática para que colisionen
-  let direction = 1;
-
-  setInterval(() => {
-    const x = sphere.getAttribute('position').x;
-    sphere.setAttribute('position', {
-      x: x + 0.02 * direction,
-      y: 0.5,
-      z: 0
-    });
-
-    if (x > 0.6 || x < -0.6) direction *= -1;
-
-    checkCollision();
-  }, 50);
-
-</script>
-
-</body>
-</html>
+    </a-scene>
 
     <script>
+        const scene = document.querySelector('a-scene');
+        const reticle = document.querySelector('#reticle');
+        const world = document.querySelector('#ar-world');
+        const msg = document.querySelector('#msg');
+        const cone = document.querySelector('#collision-cone');
 
+        let placedObjects = [];
+        let selectedObject = null;
+        const COLLISION_DISTANCE = 0.3;
+
+        // WebXR Hit Test Logic
+        scene.addEventListener('enter-vr', () => {
+            const session = scene.xrSession;
+            session.requestReferenceSpace('viewer').then((viewerSpace) => {
+                session.requestHitTestSource({ space: viewerSpace }).then((source) => {
+                    scene.hitTestSource = source;
+                });
+            });
+
+            session.addEventListener('select', () => {
+                if (reticle.getAttribute('visible')) {
+                    if (placedObjects.length < 2) {
+                        placeObject();
+                    } else {
+                        // If 2 objects exist, tap selects/deselects for movement
+                        handleSelection();
+                    }
+                }
+            });
+        });
+
+        scene.addEventListener('tick', () => {
+            const frame = scene.frame;
+            if (!frame) return;
+
+            const hitTestSource = scene.hitTestSource;
+            if (hitTestSource) {
+                const referenceSpace = scene.renderer.xr.getReferenceSpace();
+                const hitTestResults = frame.getHitTestResults(hitTestSource);
+
+                if (hitTestResults.length > 0) {
+                    const hit = hitTestResults[0];
+                    const pose = hit.getPose(referenceSpace);
+                    reticle.setAttribute('visible', true);
+                    reticle.setAttribute('position', pose.transform.position);
+                    
+                    // If an object is selected, move it to the reticle position
+                    if (selectedObject) {
+                        selectedObject.setAttribute('position', pose.transform.position);
+                        checkCollisions();
+                    }
+                } else {
+                    reticle.setAttribute('visible', false);
+                }
+            }
+        });
+
+        function placeObject() {
+            const type = placedObjects.length === 0 ? 'a-box' : 'a-sphere';
+            const color = placedObjects.length === 0 ? '#4CAF50' : '#E91E63';
+            
+            const newObj = document.createElement(type);
+            newObj.setAttribute('position', reticle.getAttribute('position'));
+            newObj.setAttribute('scale', '0.15 0.15 0.15');
+            newObj.setAttribute('material', `color: ${color}`);
+            newObj.classList.add('collidable');
+            
+            world.appendChild(newObj);
+            placedObjects.push(newObj);
+
+            if (placedObjects.length === 1) {
+                msg.innerText = "Cube placed! Now place the Sphere.";
+            } else {
+                msg.innerText = "Tap an object to move it into the other.";
+            }
+        }
+
+        function handleSelection() {
+            // Simple toggle selection logic
+            if (selectedObject) {
+                selectedObject = null;
+                msg.innerText = "Object placed. Tap an object to move it.";
+            } else {
+                // Find closest object to reticle to "pick up"
+                const reticlePos = reticle.object3D.position;
+                let closest = null;
+                let minDist = 0.5;
+
+                placedObjects.forEach(obj => {
+                    const dist = obj.object3D.position.distanceTo(reticlePos);
+                    if (dist < minDist) {
+                        minDist = dist;
+                        closest = obj;
+                    }
+                });
+
+                if (closest) {
+                    selectedObject = closest;
+                    msg.innerText = "Moving object... Collide them!";
+                }
+            }
+        }
+
+        function checkCollisions() {
+            if (placedObjects.length < 2) return;
+
+            const p1 = placedObjects[0].object3D.position;
+            const p2 = placedObjects[1].object3D.position;
+            const distance = p1.distanceTo(p2);
+
+            if (distance < COLLISION_DISTANCE) {
+                // Transform: Hide originals, show cone at midpoint
+                placedObjects[0].setAttribute('visible', false);
+                placedObjects[1].setAttribute('visible', false);
+                
+                cone.setAttribute('visible', true);
+                cone.setAttribute('position', {
+                    x: (p1.x + p2.x) / 2,
+                    y: (p1.y + p2.y) / 2,
+                    z: (p1.z + p2.z) / 2
+                });
+                msg.innerText = "Collision! Transformed into a Cone!";
+            } else {
+                // Separate: Show originals, hide cone
+                placedObjects[0].setAttribute('visible', true);
+                placedObjects[1].setAttribute('visible', true);
+                cone.setAttribute('visible', false);
+                if (selectedObject) msg.innerText = "Separated! Moving object...";
+            }
+        }
     </script>
 </body>
 </html>
